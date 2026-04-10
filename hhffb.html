@@ -1,0 +1,1000 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Цифровой поводырь — НТО Умный Город (Final No-User-Check)</title>
+    <style>
+        :root { --primary: #667eea; --secondary: #764ba2; --success: #28a745; --warning: #ffc107; --danger: #dc3545; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
+        body { background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%); min-height: 100vh; padding: 20px; color: #333; }
+        .app { max-width: 1100px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+
+        header { text-align: center; color: white; margin-bottom: 10px; }
+        h1 { font-size: 2.2em; text-shadow: 0 2px 10px rgba(0,0,0,0.3); }
+
+        /* Status Bar */
+        .status-bar { background: white; padding: 12px 20px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .conn-status { display: flex; align-items: center; gap: 10px; font-weight: 600; }
+        .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--success); animation: pulse 2s infinite; }
+        .dot.off { background: var(--danger); animation: none; }
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(40,167,69,0.7); } 70% { box-shadow: 0 0 0 10px rgba(40,167,69,0); } 100% { box-shadow: 0 0 0 0 rgba(40,167,69,0); } }
+
+        /* Layout */
+        .card { background: white; border-radius: 16px; padding: 20px; box-shadow: 0 8px 30px rgba(0,0,0,0.1); }
+        .tabs { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 5px; margin-bottom: 10px; }
+        .tab-btn { padding: 10px 18px; border: none; background: #eef2f7; border-radius: 8px; cursor: pointer; font-weight: 600; color: #555; transition: 0.3s; white-space: nowrap; }
+        .tab-btn.active { background: var(--primary); color: white; }
+        .tab-content { display: none; animation: fadeIn 0.3s; }
+        .tab-content.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Voice Panel */
+        .voice-panel { text-align: center; padding: 15px; background: #f8f9fa; border-radius: 12px; margin-bottom: 15px; }
+        .mic-btn { width: 80px; height: 80px; border-radius: 50%; background: var(--primary); color: white; font-size: 32px; border: none; cursor: pointer; transition: 0.3s; display: inline-flex; align-items: center; justify-content: center; }
+        .mic-btn.active { background: var(--success); transform: scale(1.1); box-shadow: 0 0 20px rgba(40,167,69,0.4); }
+        .last-phrase { margin-top: 10px; font-style: italic; color: #666; font-size: 0.9em; min-height: 20px; }
+
+        /* Route Viz */
+        .route-viz { margin-top: 15px; border-left: 3px solid #ddd; padding-left: 15px; }
+        .route-step { position: relative; padding-bottom: 20px; }
+        .route-step::before { content: ''; position: absolute; left: -21px; top: 0; width: 12px; height: 12px; border-radius: 50%; background: #ccc; border: 2px solid white; }
+        .route-step.active::before { background: var(--success); transform: scale(1.3); box-shadow: 0 0 10px var(--success); }
+        .route-step.done::before { background: var(--primary); }
+        .step-info { background: #f8f9fa; padding: 10px; border-radius: 8px; margin-bottom: 5px; }
+        .step-info.active { background: #e8f5e9; border-left: 4px solid var(--success); }
+        .step-waiting { border-left: 4px solid var(--warning); background: #fff3cd; animation: blink-border 1s infinite; }
+        @keyframes blink-border { 50% { border-color: transparent; } }
+
+        /* Grids & Components */
+        .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; }
+        .grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+        .btn { padding: 12px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: 0.2s; width: 100%; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn:hover { opacity: 0.9; transform: translateY(-2px); }
+
+        .weather-card { background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 15px; border-radius: 10px; text-align: center; }
+        .bus-card { background: white; border: 1px solid #eee; padding: 15px; border-radius: 10px; border-left: 4px solid var(--primary); }
+        .eta-val { font-size: 1.5em; font-weight: bold; color: var(--primary); }
+
+        .log-panel { background: #1e1e1e; color: #0f0; padding: 15px; border-radius: 8px; height: 200px; overflow-y: auto; font-family: monospace; font-size: 12px; }
+        .log-line { margin-bottom: 4px; border-bottom: 1px solid #333; padding-bottom: 2px; }
+
+        input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 10px; }
+
+        .mfc-point-btn {
+            padding: 15px;
+            border: 2px solid #eee;
+            border-radius: 8px;
+            cursor: pointer;
+            text-align: center;
+            transition: 0.2s;
+            font-weight: bold;
+            background: #f9f9f9;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+        }
+        .mfc-point-btn:hover, .mfc-point-btn.selected {
+            border-color: var(--primary);
+            background: #f0f4ff;
+            color: var(--primary);
+        }
+        .mfc-point-desc { font-size: 0.8em; font-weight: normal; color: #666; }
+
+        .alert-box { padding: 12px; border-radius: 8px; margin-top: 10px; display: none; }
+        .alert-warning { background: #fff3cd; color: #856404; border-left: 4px solid #ffc107; }
+        .alert-danger { background: #f8d7da; color: #721c24; border-left: 4px solid #dc3545; }
+
+        .waypoint-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: #f8f9fa; border-radius: 6px; margin-bottom: 6px; border: 1px solid #e0e0e0; }
+        .btn-remove { background: #dc3545; color: white; border: none; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+        .btn-remove:hover { background: #c82333; }
+    </style>
+</head>
+<body>
+
+<div class="app">
+    <header>
+        <h1>🎯 Цифровой поводырь</h1>
+        <p>Интеграция с локальным сервером (192.168.31.105)</p>
+    </header>
+
+    <!-- Статус соединения -->
+    <div class="status-bar">
+        <div class="conn-status">
+            <div class="dot" id="connDot"></div>
+            <span id="connText">Подключение...</span>
+        </div>
+        <button onclick="toggleDebug()" style="background:none;border:none;cursor:pointer;">🔍 JSON</button>
+    </div>
+    <div id="debugPanel" style="display:none;background:#333;color:#fff;padding:10px;font-size:11px;max-height:150px;overflow:auto;"></div>
+
+    <!-- Голосовой ассистент -->
+    <div class="card">
+        <div class="voice-panel">
+            <button class="mic-btn" id="micBtn" onclick="toggleVoice()">🎤</button>
+            <div style="margin-top:10px;font-weight:600;" id="voiceStatus">Голосовой помощник выключен</div>
+            <div class="last-phrase" id="lastPhrase"></div>
+        </div>
+    </div>
+
+    <!-- Вкладки -->
+    <div class="card" style="padding-bottom:0;">
+        <div class="tabs">
+            <button class="tab-btn active" onclick="showTab('nav')">🧭 Навигация</button>
+            <button class="tab-btn" onclick="showTab('bus')">🚌 Транспорт</button>
+            <button class="tab-btn" onclick="showTab('mfc')">🏢 МФЦ</button>
+            <button class="tab-btn" onclick="showTab('weather')">🌡️ Погода</button>
+            <button class="tab-btn" onclick="showTab('vibro')">📳 Переход</button>
+            <button class="tab-btn" onclick="showTab('log')">📋 Лог</button>
+        </div>
+    </div>
+
+    <!-- TAB: НАВИГАЦИЯ -->
+    <div id="tab-nav" class="tab-content active card">
+        <h3>Построение маршрута</h3>
+        <div class="grid-2">
+            <div><label>Откуда (ID):</label><input type="number" id="startPt" value="19"></div>
+            <div><label>Куда (ID):</label><input type="number" id="endPt" value="34"></div>
+        </div>
+        <div style="margin-bottom:10px;">
+            <label>Промежуточные точки:</label>
+            <div id="waypointsList" style="margin-top:5px;"></div>
+            <div style="display:flex;gap:5px;margin-top:5px;">
+                <input type="number" id="newWp" placeholder="ID точки" style="margin:0;">
+                <button class="btn btn-primary" onclick="addWp()" style="width:auto;">➕ Добавить</button>
+            </div>
+        </div>
+        <div class="grid-2">
+            <button class="btn btn-primary" onclick="buildRoute()">🚀 Построить маршрут</button>
+            <button class="btn btn-danger" onclick="stopNav()">⏹ Остановить</button>
+        </div>
+        <div id="routeContainer" style="margin-top:20px;display:none;">
+            <h4>Текущий маршрут:</h4>
+            <div class="route-viz" id="routeSteps"></div>
+        </div>
+        <div id="obstacleAlert" class="alert-box alert-danger"></div>
+    </div>
+
+    <!-- TAB: ТРАНСПОРТ -->
+    <div id="tab-bus" class="tab-content card">
+        <h3>Мониторинг автобусов (ETA)</h3>
+        <div id="trafficWarning" class="alert-box alert-warning">
+            <strong>⚠️ Внимание!</strong> <span id="trafficMsg"></span>
+        </div>
+        <div class="grid-2" id="busGrid" style="margin-top:15px;">
+            <div style="color:#999;text-align:center;">Ожидание данных...</div>
+        </div>
+        <div style="margin-top:15px;padding:15px;background:#f8f9fa;border-radius:8px;">
+            <h4>🔄 Режим навигации с пересадкой</h4>
+            <p style="font-size:0.9em;color:#666;margin-bottom:10px;">
+                Система автоматически определит посадку и высадку.
+                Постройте маршрут до остановки (например, точка 19).
+            </p>
+            <div style="font-size:0.9em; color:#555;">
+                Статус: <strong id="transferStatusText">Ожидание...</strong>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB: МФЦ -->
+    <div id="tab-mfc" class="tab-content card">
+        <h3>Навигация внутри здания (Свет)</h3>
+        <p style="color:#666;margin-bottom:15px;">Выберите услугу.</p>
+        <div class="grid-3" id="mfcPointsGrid"></div>
+        <div id="mfcStatus" style="margin-top:15px;display:none;">
+            <div style="background:#e8f5e9;padding:10px;border-radius:8px;margin-bottom:10px;">
+                <strong>Ваш номер очереди:</strong> <span id="queueNum" style="font-size:1.2em;font-weight:bold;color:var(--primary);"></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB: ПОГОДА -->
+    <div id="tab-weather" class="tab-content card">
+        <h3>Датчик MGS-THP80 (Local Server)</h3>
+        <div class="grid-3">
+            <div class="weather-card"><div style="font-size:2em;" id="wTemp">--°C</div><div>Температура</div></div>
+            <div class="weather-card"><div style="font-size:2em;" id="wHum">--%</div><div>Влажность</div></div>
+            <div class="weather-card"><div style="font-size:2em;" id="wPres">-- мм</div><div>Давление</div></div>
+        </div>
+        <div id="clothingRec" style="margin-top:15px;padding:15px;background:#f8f9fa;border-radius:8px;text-align:center;font-weight:600;">Рекомендации...</div>
+    </div>
+
+    <!-- TAB: ВИБРО -->
+    <div id="tab-vibro" class="tab-content card">
+        <h3>Виброплатформа (Local Control)</h3>
+        <div style="text-align:center;padding:20px;">
+            <div style="font-size:4em;margin-bottom:10px;" id="vibroIcon">📳</div>
+            <h2 id="vibroStatusText">Ожидание...</h2>
+            <div style="margin-top:10px;font-size:1.2em;">Расстояние: <strong id="distVal">--</strong> см</div>
+        </div>
+        <button class="btn btn-warning" onclick="testVibro()">🧪 Тест</button>
+    </div>
+
+    <!-- TAB: ЛОГ -->
+    <div id="tab-log" class="tab-content card">
+        <h3>Системный журнал</h3>
+        <div class="log-panel" id="sysLog"></div>
+        <button class="btn btn-danger" onclick="document.getElementById('sysLog').innerHTML=''" style="margin-top:10px;">Очистить</button>
+    </div>
+</div>
+
+<script>
+// ================= КОНФИГУРАЦИЯ =================
+const CFG = {
+    CITY_SERVER_URL: 'http://192.168.31.63:8000/state', // Проверьте этот IP!
+    LOCAL_SERVER_URL: 'http://192.168.31.105:5000', // Адрес вашего локального сервера
+    EVENT_URL: 'http://192.168.31.63:8000/event',
+    TOKEN: 'citizens3846',
+    USER_ID: 'blind_user_01',
+    POLL_MS: 1000, // Опрос городского сервера раз в секунду
+    BUS_CIRCLE_1: [13,14,15,16,17],
+    BUS_CIRCLE_2: [18,19,20,41,42],
+    MY_STOP: 19,
+    SPECIAL_RFID: '33501e34',
+};
+const BUS_POINTS = new Set([...CFG.BUS_CIRCLE_1, ...CFG.BUS_CIRCLE_2]);
+
+// Граф
+const GRAPH = {
+    1:[10,2,3,4], 2:[1,3,4], 3:[1,2,4], 4:[1,2,3,12],
+    5:[6,7,11], 6:[5,8,9], 7:[5,8,11], 8:[6,7,9],
+    9:[6,8,10,14], 10:[1,9,13],
+    11:[5,7,12,15,19,31,32, 33,34,35,36,37,38,39,40],
+    12:[4,11,16,20,31,32, 33,34,35,36,37,38,39,40],
+    13:[10,14,15,16,17], 14:[9,13,15,16,17],
+    15:[11,13,14,16,17, 19, 20, 31, 32],
+    16:[12,13,14,15,17, 19, 20, 31, 32],
+    17:[13, 14, 15, 16, 18],
+    18:[17, 19,20,41,42],
+    19:[11, 12, 15, 16, 18,20,31,32,41,42],
+    20:[11, 12, 15, 16, 18,19,31,41,42],
+    21:[22,23,24], 22:[21,23,24], 23:[21,24,31], 24:[21,22,30],
+    25:[26,27,32], 26:[25,28,29], 27:[25,28,32],
+    28:[26,27,29], 29:[26,28,30,41,42], 30:[24,29,41,42],
+    31:[20,23,32, 33,34,35,36,37,38,39,40],
+    32:[19,25,27,31, 33,34,35,36,37,38,39,40],
+    33:[11,12,31,32], 34:[11,12,31,32], 35:[11,12,31,32], 36:[11,12,31,32],
+    37:[11,12,31,32], 38:[11,12,31,32], 39:[11,12,31,32], 40:[11,12,31,32],
+    41:[18,19,20,29,30,42], 42:[18,19,20,29,30,41]
+};
+
+const MFC_POINT_DESC = { 33:"Регистрация", 34:"Справки", 35:"ЖКХ", 36:"Имущество", 37:"ЗАГС", 38:"Паспорт", 39:"Соц. услуги", 40:"Налоги" };
+
+// ================= СОСТОЯНИЕ =================
+let state = {
+    voiceActive: false, navActive: false, route: [], step: 0, waypoints: [],
+    blocked: new Set(), congested: new Set(), busHistory: {}, segmentAverages: {},
+    mfcTarget: null, vibroActive: false, transferStep: 0,
+    lastRfidCode: null, lastRfidDeviceId: null, lastFaceEvent: null, waitingForConfirmation: false,
+    currentWeather: { temp: null, hum: null, pres: null }, busesData: {},
+    trafficAlertSent: false, lastConnError: null
+};
+
+let lastSpokenPhrase = ""; // Для защиты от эха голоса
+let lastVibroState = false; // Для защиты от спама вибро
+let lastTrafficAlertTime = 0; // Для защиты от спама пробок
+const TRAFFIC_COOLDOWN = 30000; // 30 секунд задержки между предупреждениями
+
+// ================= КЛИЕНТ СЕРВЕРА =================
+class CityClient {
+    async send(type, data) {
+        const payload = { type, ...data, timestamp: Math.floor(Date.now()/1000) };
+        try {
+            if(type === 1 && payload.text.length > 200) payload.text = payload.text.substr(0, 200);
+            await fetch(CFG.EVENT_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Access-Token':CFG.TOKEN}, body:JSON.stringify(payload) });
+            log(`→ TYPE ${type} OK`, 'success');
+        } catch(e) { log(`→ TYPE ${type} ERR`, 'error'); }
+    }
+    async fetchState() {
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000); // Таймаут 5 сек
+
+            const res = await fetch(CFG.CITY_SERVER_URL, { signal: controller.signal });
+            clearTimeout(timeoutId);
+
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+            const text = await res.text();
+            let json;
+            try {
+                json = JSON.parse(text);
+            } catch(e) {
+                const match = text.match(/\{[\s\S]*\}/);
+                if(match) json = JSON.parse(match[0]);
+                else throw new Error("Invalid JSON format");
+            }
+
+            updateConnection(true);
+            return json;
+        } catch(e) {
+            if (state.lastConnError !== e.message) {
+                log(`[CONN ERR] ${e.message}. Check IP: ${CFG.CITY_SERVER_URL}`, 'error');
+                state.lastConnError = e.message;
+            }
+            updateConnection(false);
+            return null;
+        }
+    }
+}
+const client = new CityClient();
+
+// ================= ЛОКАЛЬНЫЙ СЕРВЕР (ПОГОДА И ВИБРО) =================
+async function fetchLocalSensors() {
+    try {
+        const res = await fetch(`${CFG.LOCAL_SERVER_URL}/get_sensor_data`);
+        if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
+
+        const data = await res.json();
+
+        // Обновление погоды
+        if (data.temperature !== undefined) state.currentWeather.temp = data.temperature;
+        if (data.humidity !== undefined) state.currentWeather.hum = data.humidity;
+        if (data.pressure !== undefined) state.currentWeather.pres = data.pressure;
+
+        document.getElementById('wTemp').innerText = (state.currentWeather.temp !== null ? state.currentWeather.temp : '--') + ' °C';
+        document.getElementById('wHum').innerText = (state.currentWeather.hum !== null ? state.currentWeather.hum : '--') + ' %';
+        document.getElementById('wPres').innerText = (state.currentWeather.pres !== null ? Math.round(state.currentWeather.pres * 0.75) : '--') + ' мм рт.ст.';
+
+        generateClothingRecommendation(state.currentWeather.temp);
+
+        // Обновление дистанции и логика вибро
+        if (data.distance !== undefined) {
+            document.getElementById('distVal').innerText = data.distance + ' см';
+            handleVibroLogic(data.distance);
+        }
+    } catch (e) {
+        // log("Ошибка связи с локальным сервером: " + e.message, 'error');
+    }
+}
+
+async function activateVibroMotor() {
+    try {
+        await fetch(`${CFG.LOCAL_SERVER_URL}/set/vibromotor/1`);
+        // log("[VIBRO] Motor ON", 'success');
+    } catch (e) {
+        log("[VIBRO] Error turning ON: " + e.message, 'error');
+    }
+}
+
+async function deactivateVibroMotor() {
+    try {
+        await fetch(`${CFG.LOCAL_SERVER_URL}/set/vibromotor/0`);
+        // log("[VIBRO] Motor OFF", 'info');
+    } catch (e) {
+        log("[VIBRO] Error turning OFF: " + e.message, 'error');
+    }
+}
+
+// ================= BFS =================
+function bfs(start, end, ignore=new Set()) {
+    if(start === end) return [start];
+    let queue = [[start]], visited = new Set([start]);
+    while(queue.length > 0) {
+        let path = queue.shift(), node = path[path.length-1];
+        if(!GRAPH[node]) continue;
+        for(let next of GRAPH[node]) {
+            if(!visited.has(next) && !ignore.has(next)) {
+                let newPath = [...path, next];
+                if(next === end) return newPath;
+                visited.add(next); queue.push(newPath);
+            }
+        }
+    }
+    return [];
+}
+
+function routeViaWaypoints(start, end, wps, blocked=[]) {
+    const pts=[start,...wps,end]; let route=[];
+    for (let i=0;i<pts.length-1;i++) {
+        const seg=bfs(pts[i],pts[i+1],blocked);
+        if (!seg.length) return [];
+        if (i>0) seg.shift();
+        route=[...route,...seg];
+    }
+    return route;
+}
+
+// ================= ОСНОВНОЙ ЦИКЛ =================
+async function mainLoop() {
+    // 1. Получаем данные с локального сервера (Погода + Дистанция)
+    await fetchLocalSensors();
+
+    // 2. Получаем данные с городского сервера (Автобусы, Препятствия, События)
+    const data = await client.fetchState();
+    if(!data) return;
+
+    if(document.getElementById('debugPanel').style.display === 'block') document.getElementById('debugPanel').textContent = JSON.stringify(data, null, 2);
+
+    // События RFID/Face
+    if (data.events) {
+        if (data.events.rfid?.length) {
+            const latestRfid = data.events.rfid[data.events.rfid.length - 1];
+            state.lastRfidCode = latestRfid.rfid_code;
+            state.lastRfidDeviceId = latestRfid.device_id;
+        }
+        if (data.events.face?.length) {
+            const latestFace = data.events.face[data.events.face.length - 1];
+            // ВАЖНО: Парсим device_id из поля 'dev' или 'device_id'
+            state.lastFaceEvent = {
+                user_id: latestFace.user_id,
+                confidence: latestFace.confidence,
+                device_id: latestFace.dev || latestFace.device_id // Пробуем dev, если нет - device_id
+            };
+            log(`[FACE EVENT] User: ${state.lastFaceEvent.user_id} on Device: ${state.lastFaceEvent.device_id} (Conf: ${state.lastFaceEvent.confidence})`, 'info');
+        }
+    }
+
+    // Автобусы и Пробки
+    if(data.buses) {
+        state.busesData = data.buses;
+        processBusesAndTraffic(data.buses);
+    }
+
+    // Препятствия
+    if(data.obstacles) {
+        const obsList = Object.values(data.obstacles);
+        if(obsList.length > 0) {
+            const msg = obsList[0].message || "Препятствие!";
+            if (msg !== lastSpokenPhrase) {
+                document.getElementById('obstacleAlert').style.display = 'block';
+                document.getElementById('obstacleAlert').innerText = msg;
+                speak(msg);
+                if(obsList[0].reroute_required) { state.blocked.add(obsList[0].location_id); if(state.navActive) rebuildRoute(); }
+            }
+        } else { document.getElementById('obstacleAlert').style.display = 'none'; }
+    }
+
+    // Голосовая очередь (Фильтрация эха)
+    if(data.voice_queue?.length > 0) {
+        const msgObj = data.voice_queue[0];
+        const msgText = msgObj.text;
+
+        if (msgText !== lastSpokenPhrase && !msgObj.announced) {
+            speak(msgText, false); // false = не отправлять обратно на сервер, чтобы не создавать цикл
+            msgObj.announced = true;
+            setTimeout(() => { lastSpokenPhrase = ""; }, 5000);
+        }
+    }
+}
+
+// ================= ПОГОДА =================
+function generateClothingRecommendation(temp) {
+    const recBox = document.getElementById('clothingRec');
+    let message = "";
+    let className = "";
+
+    if (temp === null || temp === undefined) {
+        message = "Данные о температуре отсутствуют.";
+        className = "mode-normal";
+    } else if (temp < 10) {
+        message = "🥶 ХОЛОДНО (< 10°C). Наденьте тёплую куртку, шапку и перчатки.";
+        className = "mode-cold";
+    } else if (temp <= 25) {
+        message = "😊 КОМФОРТНО (10–25°C). Легкая куртка или ветровка оптимальны.";
+        className = "mode-normal";
+    } else {
+        message = "🌞 ЖАРКО (> 25°C). Легкая одежда, головной убор и вода.";
+        className = "mode-hot";
+    }
+
+    if (recBox.innerText !== message) {
+        recBox.innerText = message;
+        recBox.className = "clothing-rec-box " + className;
+        if (!state.lastClothingMsg || state.lastClothingMsg !== message) {
+            state.lastClothingMsg = message;
+        }
+    }
+}
+
+// ================= АВТОБУСЫ И ПРОБКИ =================
+function processBusesAndTraffic(buses) {
+    const grid = document.getElementById('busGrid'); grid.innerHTML = '';
+    let congestionDetected = false;
+    let congestionRing = null; // Переменная для хранения номера кольца с пробкой
+    let congestionMessage = "";
+
+    if (!state.globalAvgSegmentTime) state.globalAvgSegmentTime = 60;
+
+    for(let [id, bus] of Object.entries(buses)) {
+        const hist = state.busHistory[id] || [];
+        hist.push({ stop: bus.current_stop, ts: bus.timestamp });
+        if(hist.length > 10) hist.shift();
+        state.busHistory[id] = hist;
+
+        let etaText = "Загрузка...";
+
+        if(hist.length >= 2) {
+            const lastEntry = hist[hist.length - 1];
+            const prevEntry = hist[hist.length - 2];
+
+            const segmentTime = lastEntry.ts - prevEntry.ts;
+
+            if (segmentTime > 5 && segmentTime < 300) {
+                state.globalAvgSegmentTime = (state.globalAvgSegmentTime * 0.8) + (segmentTime * 0.2);
+
+                let stopsAway = 0;
+                if (CFG.BUS_CIRCLE_1.includes(bus.current_stop)) {
+                     stopsAway = getStopsDistance(bus.current_stop, CFG.MY_STOP, CFG.BUS_CIRCLE_1);
+                } else if (CFG.BUS_CIRCLE_2.includes(bus.current_stop)) {
+                     stopsAway = getStopsDistance(bus.current_stop, CFG.MY_STOP, CFG.BUS_CIRCLE_2);
+                }
+
+                const estimatedSeconds = stopsAway * state.globalAvgSegmentTime;
+                const estimatedMinutes = Math.ceil(estimatedSeconds / 60);
+
+                etaText = estimatedMinutes <= 1 ? "< 1 мин" : `${estimatedMinutes} мин`;
+
+                // --- ДЕТЕКЦИЯ ПРОБКИ С ОПРЕДЕЛЕНИЕМ КОЛЬЦА ---
+                if (segmentTime > state.globalAvgSegmentTime * 1.5) {
+                    congestionDetected = true;
+
+                    // Определяем кольцо по текущей остановке автобуса
+                    if (CFG.BUS_CIRCLE_1.includes(lastEntry.stop)) {
+                        congestionRing = 1;
+                    } else if (CFG.BUS_CIRCLE_2.includes(lastEntry.stop)) {
+                        congestionRing = 2;
+                    }
+                }
+            }
+        }
+
+        const div = document.createElement('div'); div.className = 'bus-card';
+        div.innerHTML = `<div><strong>Автобус #${id}</strong></div><div>Ост: <span style="color:blue;font-weight:bold">${bus.current_stop}</span></div><div class="eta-val">${etaText}</div>`;
+        grid.appendChild(div);
+    }
+
+    const warnBox = document.getElementById('trafficWarning');
+    if(congestionDetected) {
+        warnBox.style.display = 'block';
+
+        // Формируем сообщение с указанием кольца
+        if (congestionRing === 1) {
+            congestionMessage = "На Кольце 1 образовалась пробка. Рекомендуется остаться дома.";
+        } else if (congestionRing === 2) {
+            congestionMessage = "На Кольце 2 образовалась пробка. Рекомендуется остаться дома.";
+        } else {
+            congestionMessage = "Обнаружена пробка на маршруте. Рекомендуется остаться дома.";
+        }
+
+        document.getElementById('trafficMsg').innerText = congestionMessage;
+
+        const now = Date.now();
+        // Отправляем сообщение только если прошло больше 30 секунд с прошлого раза
+        if (now - lastTrafficAlertTime > TRAFFIC_COOLDOWN) {
+            speak(congestionMessage); // Озвучиваем локально
+            client.send(1, { text: congestionMessage }); // Отправляем на городской сервер
+            lastTrafficAlertTime = now;
+            log(`[TRAFFIC] Alert sent for Ring ${congestionRing}`, 'warning');
+        }
+    } else {
+        warnBox.style.display = 'none';
+    }
+}
+
+function getStopsDistance(current, target, circleArray) {
+    const currentIndex = circleArray.indexOf(current);
+    const targetIndex = circleArray.indexOf(target);
+    if (currentIndex === -1 || targetIndex === -1) return 5;
+    if (targetIndex > currentIndex) return targetIndex - currentIndex;
+    else return (circleArray.length - currentIndex) + targetIndex;
+}
+
+// ================= НАВИГАЦИЯ =================
+function buildRoute() {
+    const start = parseInt(document.getElementById('startPt').value);
+    const end = parseInt(document.getElementById('endPt').value);
+    if (!start || !end) { speak("Укажите точки"); return; }
+
+    let fullRoute = [];
+    if (state.waypoints.length > 0) {
+        let currentStart = start;
+        for (let wp of state.waypoints) {
+            const segment = bfs(currentStart, wp, new Set([...state.blocked, ...state.congested]));
+            if (segment.length === 0) { speak(`Нет пути до ${wp}`); return; }
+            if (fullRoute.length > 0) segment.shift();
+            fullRoute = [...fullRoute, ...segment]; currentStart = wp;
+        }
+        const lastSegment = bfs(currentStart, end, new Set([...state.blocked, ...state.congested]));
+        if (lastSegment.length === 0) { speak("Нет пути до финиша"); return; }
+        if (fullRoute.length > 0) lastSegment.shift();
+        fullRoute = [...fullRoute, ...lastSegment];
+    } else {
+        fullRoute = bfs(start, end, new Set([...state.blocked, ...state.congested]));
+    }
+
+    if (fullRoute.length === 0) { speak("Маршрут не найден."); return; }
+
+    state.route = fullRoute; state.step = 0; state.navActive = true; state.waitingForConfirmation = false;
+    if (end === CFG.MY_STOP) { state.transferStep = 1; document.getElementById('transferStatusText').innerText = "Ожидание автобуса..."; }
+
+    renderRoute();
+    sendStartRecommendations();
+    speak(`Маршрут построен. ${fullRoute.length} точек.`);
+    runNavigationStep();
+}
+
+function sendStartRecommendations() {
+    const temp = state.currentWeather.temp;
+    let clothingAdvice = temp === null ? "Оденьтесь по сезону." : (temp < 10 ? "Холодно. Куртка и шапка." : (temp <= 25 ? "Комфортно. Ветровка." : "Жарко. Легкая одежда."));
+    client.send(1, { text: `Рекомендация по одежде: ${clothingAdvice}` });
+
+    let trafficAdvice = state.congested.size > 0 ? "Внимание! Задержки на маршруте." : "Дорожная обстановка спокойная.";
+    client.send(1, { text: `Ситуация на дороге: ${trafficAdvice}` });
+}
+
+function rebuildRoute() {
+    if(!state.navActive) return;
+    const current = state.route[state.step];
+    const end = state.route[state.route.length-1];
+    const newRoute = bfs(current, end, new Set([...state.blocked, ...state.congested]));
+    if(newRoute.length > 0) {
+        state.route = newRoute; state.step = 0; renderRoute(); speak("Маршрут перестроен."); runNavigationStep();
+    } else { speak("Невозможно перестроить."); stopNav(); }
+}
+
+async function runNavigationStep() {
+    if(!state.navActive || state.step >= state.route.length) {
+        if(state.navActive) {
+            speak("Прибыли в пункт назначения.");
+            state.navActive = false;
+            state.transferStep = 0;
+        }
+        return;
+    }
+
+    const ptId = state.route[state.step];
+    const prevPtId = state.step > 0 ? state.route[state.step - 1] : null;
+
+    handleBusInteraction(ptId, prevPtId);
+
+    // Включаем звук на текущей точке
+    const freq = 800 + (ptId * 50);
+    client.send(2, { device_id: ptId, duration_ms: 2000, frequency_hz: freq });
+
+    // Отправляем событие распознавания лица (симуляция или реальное)
+    simulateFaceRecognition(ptId);
+
+    // Обновляем UI до начала ожидания
+    document.querySelectorAll('.route-step').forEach((el, i) => {
+        el.classList.remove('active', 'step-waiting');
+        if(i === state.step) {
+            el.classList.add('active');
+            if(state.waitingForConfirmation) el.classList.add('step-waiting');
+        }
+        if(i < state.step) el.classList.add('done');
+    });
+
+    state.waitingForConfirmation = true;
+    renderRoute(); // <-- ВАЖНО: Рисуем интерфейс с текущей точкой
+
+    log(`[NAV] Waiting for confirmation at Point ${ptId}...`, 'info');
+    const confirmed = await waitForConfirmation(ptId);
+
+    state.waitingForConfirmation = false;
+
+    if (!confirmed) {
+        speak("Ошибка подтверждения. Маршрут остановлен.");
+        state.navActive = false;
+        return;
+    }
+
+    // Переход к следующей точке
+    state.step++;
+
+    // <-- ВАЖНО: Обновляем интерфейс, чтобы показать, что мы перешли на следующую точку
+    renderRoute();
+
+    // Небольшая пауза перед активацией следующей точки
+    setTimeout(runNavigationStep, 1000);
+}
+
+function handleBusInteraction(currentPt, prevPt) {
+    if (!prevPt) return;
+    const isCurrentBus = BUS_POINTS.has(currentPt);
+    const isPrevBus = BUS_POINTS.has(prevPt);
+
+    if (!isPrevBus && isCurrentBus) {
+        speak("Заходите в автобус."); client.send(1, { text: "Заходите в автобус." });
+    } else if (isPrevBus && !isCurrentBus) {
+        speak("Выходите из автобуса."); client.send(1, { text: "Выходите из автобуса." });
+    }
+
+    if (currentPt === CFG.MY_STOP && state.transferStep === 1) {
+        let busHere = false;
+        for(let bus of Object.values(state.busesData)) { if(bus.current_stop === CFG.MY_STOP) { busHere = true; break; } }
+        if(busHere) {
+            speak("Автобус прибыл. Садитесь."); client.send(1, { text: "Автобус прибыл. Садитесь." });
+            state.transferStep = 2; document.getElementById('transferStatusText').innerText = "В пути...";
+        } else { speak("Ожидайте автобус."); }
+    }
+}
+
+async function waitForConfirmation(targetDeviceId) {
+    return new Promise((resolve) => {
+        let isResolved = false;
+        const timeout = setTimeout(() => { if (!isResolved) resolve(false); }, 120000);
+
+        const checkInterval = setInterval(() => {
+            if (isResolved) return;
+
+            // Проверка RFID
+            if (state.lastRfidCode && state.lastRfidDeviceId === targetDeviceId) {
+                if (state.lastRfidCode === CFG.SPECIAL_RFID || state.lastRfidCode.startsWith(`USER_${CFG.USER_ID}`)) {
+                    clearTimeout(timeout); clearInterval(checkInterval);
+                    state.lastRfidCode = null; state.lastRfidDeviceId = null;
+
+                    isResolved = true;
+                    log(`[CONFIRMED] RFID on Point ${targetDeviceId}`, 'success');
+
+                    // ✅ ОТЧЕТ В ГОЛОСОВУЮ ОЧЕРЕДЬ И ЛОКАЛЬНО
+                    const msg = `Точка ${targetDeviceId} пройдена. Двигаемся к следующей.`;
+                    speak(msg); // Локальная озвучка
+                    client.send(1, { text: msg }); // Отправка на городской сервер
+
+                    resolve(true);
+                }
+            }
+
+            // Проверка Face ID (БЕЗ ПРОВЕРКИ USER_ID)
+            if (state.lastFaceEvent) {
+                // КРИТИЧЕСКИ ВАЖНО: Сравниваем ID устройства из события с целевой точкой
+                if (state.lastFaceEvent.device_id == targetDeviceId) { // Используем == для нестрогого сравнения типов
+
+                    // ЗАБИВАЕМ НА USER_ID И CONFIDENCE. Главное - устройство совпало.
+                    // Можно добавить минимальную проверку confidence > 0.5, если хотите отсеять мусор, но по запросу "забей" убираем всё.
+
+                    clearTimeout(timeout); clearInterval(checkInterval);
+                    state.lastFaceEvent = null;
+
+                    isResolved = true;
+                    log(`[CONFIRMED] Face detected on Point ${targetDeviceId} (Any User)`, 'success');
+
+                    // ✅ ОТЧЕТ В ГОЛОСОВУЮ ОЧЕРЕДЬ И ЛОКАЛЬНО
+                    const msg = `Точка ${targetDeviceId} пройдена. Двигаемся к следующей.`;
+                    speak(msg); // Локальная озвучка
+                    client.send(1, { text: msg }); // Отправка на городской сервер
+
+                    resolve(true);
+                }
+            }
+
+        }, 50); // Проверка каждые 50мс
+    });
+}
+
+async function simulateFaceRecognition(deviceId) {
+    await client.send(6, { device_id: deviceId, user_id: CFG.USER_ID, confidence: 0.9 });
+}
+
+// ================= МФЦ =================
+function initMfcButtons() {
+    const grid = document.getElementById('mfcPointsGrid'); grid.innerHTML = '';
+    for (let i = 33; i <= 40; i++) {
+        const btn = document.createElement('div'); btn.className = 'mfc-point-btn';
+        btn.innerHTML = `<span>Точка ${i}</span><span class="mfc-point-desc">${MFC_POINT_DESC[i]}</span>`;
+        btn.onclick = () => selectMfcPoint(i, btn);
+        grid.appendChild(btn);
+    }
+}
+
+function selectMfcPoint(pointId, el) {
+    document.querySelectorAll('.mfc-point-btn').forEach(e => e.classList.remove('selected'));
+    el.classList.add('selected');
+    state.mfcTarget = pointId;
+
+    const queueNum = `${pointId}-${Math.floor(Math.random()*99)}`;
+    document.getElementById('mfcStatus').style.display = 'block';
+    document.getElementById('queueNum').innerText = queueNum;
+
+    client.send(1, { text: `Ваш номер очереди ${queueNum}. Следуйте к точке ${pointId}.` });
+    speak(`Номер очереди ${queueNum}.`);
+
+    let newRoute = [];
+    const ignoreSet = new Set([...state.blocked, ...state.congested]);
+
+    if (!state.navActive || state.route.length === 0) {
+        const start = parseInt(document.getElementById('startPt').value) || 19;
+        newRoute = bfs(start, pointId, ignoreSet);
+    } else {
+        const currentPosIndex = Math.max(0, state.step > 0 ? state.step - 1 : 0);
+        const currentPos = state.route[currentPosIndex];
+        const oldEnd = state.route[state.route.length - 1];
+        newRoute = routeViaWaypoints(currentPos, oldEnd, [pointId], ignoreSet);
+    }
+
+    if (newRoute.length === 0) { speak("Невозможно построить маршрут."); return; }
+
+    state.route = newRoute; state.step = 0; state.navActive = true; state.waitingForConfirmation = false;
+    renderRoute(); runHybridNavigation();
+}
+
+async function runHybridNavigation() {
+    if(!state.navActive || state.step >= state.route.length) {
+        if(state.navActive) {
+            speak("Маршрут завершен.");
+            state.navActive = false;
+        }
+        return;
+    }
+
+    const ptId = state.route[state.step];
+    const isIndoor = (ptId >= 33 && ptId <= 40);
+
+    if (isIndoor) {
+        // Свет для внутренних точек
+        await client.send(3, { device_id: ptId, color: { r: 0, g: 255, b: 255 } });
+        speak(`Точка ${ptId}. Световой сигнал.`);
+    } else {
+        // Звук для уличных точек
+        const freq = 800 + (ptId * 50);
+        await client.send(2, { device_id: ptId, duration_ms: 2000, frequency_hz: freq });
+        speak(`Точка ${ptId}. Звуковой сигнал.`);
+    }
+
+    simulateFaceRecognition(ptId);
+
+    state.waitingForConfirmation = true;
+    renderRoute(); // <-- ВАЖНО: Рисуем интерфейс
+
+    log(`[HYBRID] Waiting for confirmation at Point ${ptId}...`, 'info');
+    const confirmed = await waitForConfirmation(ptId);
+
+    state.waitingForConfirmation = false;
+
+    if (!confirmed) {
+        speak("Ошибка подтверждения.");
+        state.navActive = false;
+        return;
+    }
+
+    // Переход к следующей точке
+    state.step++;
+
+    // <-- ВАЖНО: Обновляем интерфейс
+    renderRoute();
+
+    setTimeout(runHybridNavigation, 1000);
+}
+
+// ================= УТИЛИТЫ =================
+function updateConnection(ok) {
+    const dot = document.getElementById('connDot');
+    const txt = document.getElementById('connText');
+    if(ok) { dot.classList.remove('off'); txt.innerText = "Подключено"; }
+    else { dot.classList.add('off'); txt.innerText = "Нет связи"; }
+}
+
+function log(msg, type='info') {
+    const p = document.getElementById('sysLog');
+    const line = document.createElement('div');
+    line.className = 'log-line';
+    line.style.color = type==='error'?'#ff5555':(type==='success'?'#55ff55':'#ccc');
+    line.innerText = `[${new Date().toLocaleTimeString()}] ${msg}`;
+    p.prepend(line);
+}
+
+function speak(text, sendToServer = true) {
+    if (text === lastSpokenPhrase && sendToServer) return;
+
+    document.getElementById('lastPhrase').innerText = text;
+    lastSpokenPhrase = text;
+
+    if(state.voiceActive) {
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = 'ru-RU';
+        speechSynthesis.speak(u);
+    }
+
+    if (sendToServer) {
+        client.send(1, { text: text });
+    }
+}
+
+function toggleVoice() {
+    state.voiceActive = !state.voiceActive;
+    const btn = document.getElementById('micBtn');
+    const st = document.getElementById('voiceStatus');
+    if(state.voiceActive) { btn.classList.add('active'); st.innerText = "Активен"; speak("Система активирована."); }
+    else { btn.classList.remove('active'); st.innerText = "Выключен"; }
+}
+
+function showTab(id) {
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-'+id).classList.add('active');
+    event.target.classList.add('active');
+}
+
+function renderRoute() {
+    const c = document.getElementById('routeContainer');
+    const s = document.getElementById('routeSteps');
+    c.style.display = 'block';
+    s.innerHTML = state.route.map((pt, i) => {
+        let icon = '📍'; let note = '';
+        if (i === 0) { icon = '🏠'; note = 'Старт'; }
+        else if (i === state.route.length - 1) { icon = '🎯'; note = 'Финиш'; }
+        else if (BUS_POINTS.has(pt)) { icon = '🚌'; note = 'Автобус'; }
+        const isWaiting = (i === state.step && state.waitingForConfirmation);
+        return `<div class="route-step ${isWaiting ? 'step-waiting' : ''}" id="step-${i}"><div class="step-info ${isWaiting ? 'active' : ''}"><strong>${icon} Точка ${pt}</strong>${note ? `<div style="font-size:12px;color:#666;">${note}</div>` : ''}${isWaiting ? '<div style="color:orange;font-weight:bold;">⏳ Ждём...</div>' : ''}</div></div>`;
+    }).join('');
+}
+
+function stopNav() { state.navActive = false; state.transferStep = 0; state.waitingForConfirmation = false; speak("Навигация остановлена."); }
+function addWp() {
+    const val = parseInt(document.getElementById('newWp').value);
+    if (!val || !(val in GRAPH)) { alert("Некорректный ID!"); return; }
+    if (state.waypoints.includes(val)) { alert("Уже добавлена!"); return; }
+    state.waypoints.push(val); renderWaypoints(); document.getElementById('newWp').value = '';
+}
+function removeWp(index) { state.waypoints.splice(index, 1); renderWaypoints(); }
+function renderWaypoints() {
+    const list = document.getElementById('waypointsList'); list.innerHTML = '';
+    if (state.waypoints.length === 0) { list.innerHTML = '<div style="color:#999;text-align:center;">Нет точек</div>'; return; }
+    state.waypoints.forEach((pt, i) => {
+        const div = document.createElement('div'); div.className = 'waypoint-item';
+        div.innerHTML = `<span><strong>${i+1}.</strong> Точка ${pt}</span><button class="btn-remove" onclick="removeWp(${i})">✕</button>`;
+        list.appendChild(div);
+    });
+}
+
+// ================= ЛОГИКА ВИБРОМОТОРА (ANTI-SPAM + SAFE CROSSING) =================
+function handleVibroLogic(dist) {
+    const isBusClose = (dist < 150 && dist > 0);
+
+    // Если состояние изменилось
+    if (isBusClose !== lastVibroState) {
+        lastVibroState = isBusClose;
+
+        if (isBusClose) {
+            // --- АВТОБУС ПРИБЛИЖАЕТСЯ ---
+            document.getElementById('vibroIcon').innerText = "⚠️";
+            document.getElementById('vibroStatusText').innerText = "ВНИМАНИЕ! Автобус!";
+            document.getElementById('vibroStatusText').style.color = "red";
+
+            activateVibroMotor(); // Запрос на /set/vibromotor/1
+
+            // Голосовое предупреждение
+            speak("Осторожно! Приближается транспорт.", true);
+            client.send(1, { text: "Внимание! Автобус на переходе." });
+        } else {
+            // --- АВТОБУС ПРОЕХАЛ (ПУТЬ СВОБОДЕН) ---
+            document.getElementById('vibroIcon').innerText = "📳";
+            document.getElementById('vibroStatusText').innerText = "Путь свободен";
+            document.getElementById('vibroStatusText').style.color = "green";
+
+            deactivateVibroMotor(); // Запрос на /set/vibromotor/0
+
+            // ✅ СООБЩЕНИЕ О ТОМ, ЧТО МОЖНО ПЕРЕХОДИТЬ
+            const safeMsg = "Транспорт проехал. Можно переходить.";
+            speak(safeMsg, true); // Локально
+            client.send(1, { text: safeMsg }); // На городской сервер
+        }
+    }
+}
+
+function testVibro() {
+    state.vibroActive = true;
+    document.getElementById('vibroIcon').innerText = "⚠️";
+    document.getElementById('vibroStatusText').innerText = "ТЕСТ";
+    activateVibroMotor();
+    setTimeout(() => {
+        state.vibroActive = false;
+        document.getElementById('vibroIcon').innerText = "📳";
+        document.getElementById('vibroStatusText').innerText = "Путь свободен";
+        deactivateVibroMotor();
+    }, 2000);
+}
+
+function toggleDebug() { const p = document.getElementById('debugPanel'); p.style.display = p.style.display === 'none' ? 'block' : 'none'; }
+
+initMfcButtons();
+setInterval(mainLoop, CFG.POLL_MS);
+log("Система запущена.", 'info');
+</script>
+</body>
+</html>
